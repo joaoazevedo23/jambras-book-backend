@@ -10,6 +10,7 @@
 .env
 .env.test
 .env.production
+src/generated/prisma/
 
 # Logs
 logs
@@ -28,3 +29,4 @@ lerna-debug.log*
 *.njsproj
 *.sln
 *.sw?
+/generated/prisma
