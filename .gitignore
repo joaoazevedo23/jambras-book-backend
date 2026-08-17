@@ -29,4 +29,10 @@ lerna-debug.log*
 *.njsproj
 *.sln
 *.sw?
+
+#Locais
 /generated/prisma
+.agents/
+.claude/
+.windsurf/
+skills-lock.json
