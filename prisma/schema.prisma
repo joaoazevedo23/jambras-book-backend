@@ -1,0 +1,287 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+// ------------------------------------------------------
+// ENUMS
+// ------------------------------------------------------
+
+enum UserBookStatus {
+  WANT_TO_READ
+  READING
+  COMPLETED
+  PAUSED
+  ABANDONED
+}
+
+enum TrackingMode {
+  PAGES
+  CHAPTERS
+}
+
+enum FriendshipStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+enum CompetitionStatus {
+  SCHEDULED
+  ACTIVE
+  FINISHED
+  CANCELLED
+}
+
+enum ActivityType {
+  STARTED_BOOK
+  READING_SESSION
+  FINISHED_BOOK
+  JOINED_COMPETITION
+  OVERTAKEN_IN_COMPETITION
+  WON_COMPETITION
+}
+
+enum NotificationType {
+  FRIEND_REQUEST
+  FRIEND_ACCEPTED
+  COMPETITION_INVITE
+  COMPETITION_STARTED
+  OVERTAKEN_IN_RANKING
+  COMPETITION_FINISHED
+}
+
+// ------------------------------------------------------
+// MODELS
+// ------------------------------------------------------
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  username     String   @unique
+  passwordHash String
+  name         String
+  avatarUrl    String?
+  bio          String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relacionamentos
+  refreshTokens           RefreshToken[]
+  userBooks               UserBook[]
+  friendshipsRequested    Friendship[]             @relation("Requester")
+  friendshipsReceived     Friendship[]             @relation("Addressee")
+  createdCompetitions     Competition[]            @relation("CompetitionCreator")
+  wonCompetitions         Competition[]            @relation("CompetitionWinner")
+  competitionParticipants CompetitionParticipant[]
+  activities              Activity[]
+  likes                   Like[]
+  comments                Comment[]
+  notifications           Notification[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+model Book {
+  id              String    @id @default(uuid())
+  title           String
+  author          String
+  description     String?   @db.Text
+  coverUrl        String?
+  pageCount       Int?
+  chapterCount    Int?
+  genres          String[]
+  publicationDate DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relacionamentos
+  userBooks    UserBook[]
+  competitions Competition[]
+
+  @@index([title])
+  @@index([author])
+  @@map("books")
+}
+
+model UserBook {
+  id         String         @id @default(uuid())
+  userId     String
+  bookId     String
+  status     UserBookStatus @default(WANT_TO_READ)
+  startedAt  DateTime?
+  finishedAt DateTime?
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  // Relacionamentos
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book            Book             @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  readingSessions ReadingSession[]
+
+  @@unique([userId, bookId])
+  @@index([userId, status])
+  @@map("user_books")
+}
+
+model ReadingSession {
+  id           String       @id @default(uuid())
+  userBookId   String
+  date         DateTime     @default(now())
+  mode         TrackingMode @default(PAGES)
+  startPage    Int?
+  endPage      Int?
+  startChapter Int?
+  endChapter   Int?
+  pagesRead    Int          @default(0)
+  chaptersRead Int          @default(0)
+  rating       Int?         // 1 a 10
+  notes        String?      @db.Text
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  // Relacionamentos
+  userBook   UserBook   @relation(fields: [userBookId], references: [id], onDelete: Cascade)
+  activities Activity[]
+
+  @@index([userBookId, date])
+  @@map("reading_sessions")
+}
+
+model Friendship {
+  id          String           @id @default(uuid())
+  requesterId String
+  addresseeId String
+  status      FriendshipStatus @default(PENDING)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  requester User @relation("Requester", fields: [requesterId], references: [id], onDelete: Cascade)
+  addressee User @relation("Addressee", fields: [addresseeId], references: [id], onDelete: Cascade)
+
+  @@unique([requesterId, addresseeId])
+  @@index([requesterId, status])
+  @@index([addresseeId, status])
+  @@map("friendships")
+}
+
+model Competition {
+  id        String            @id @default(uuid())
+  name      String
+  bookId    String
+  creatorId String
+  winnerId  String?
+  startDate DateTime
+  endDate   DateTime?
+  status    CompetitionStatus @default(SCHEDULED)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  // Relacionamentos
+  book         Book                     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  creator      User                     @relation("CompetitionCreator", fields: [creatorId], references: [id])
+  winner       User?                    @relation("CompetitionWinner", fields: [winnerId], references: [id])
+  participants CompetitionParticipant[]
+  activities   Activity[]
+
+  @@index([status])
+  @@map("competitions")
+}
+
+model CompetitionParticipant {
+  id            String    @id @default(uuid())
+  competitionId String
+  userId        String
+  joinedAt      DateTime  @default(now())
+  finishedAt    DateTime?
+  finalPosition Int?
+  startingPage  Int       @default(0)
+
+  // Relacionamentos
+  competition Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([competitionId, userId])
+  @@map("competition_participants")
+}
+
+model Activity {
+  id               String       @id @default(uuid())
+  userId           String
+  type             ActivityType
+  readingSessionId String?
+  competitionId    String?
+  metadata         Json?
+  createdAt        DateTime     @default(now())
+
+  // Relacionamentos
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  readingSession ReadingSession? @relation(fields: [readingSessionId], references: [id], onDelete: SetNull)
+  competition    Competition?    @relation(fields: [competitionId], references: [id], onDelete: SetNull)
+  likes          Like[]
+  comments       Comment[]
+
+  @@index([userId, createdAt])
+  @@map("activities")
+}
+
+model Like {
+  id         String   @id @default(uuid())
+  activityId String
+  userId     String
+  createdAt  DateTime @default(now())
+
+  activity Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([activityId, userId])
+  @@map("likes")
+}
+
+model Comment {
+  id         String   @id @default(uuid())
+  activityId String
+  userId     String
+  content    String   @db.Text
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  activity Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("comments")
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  type      NotificationType
+  title     String
+  message   String
+  linkUrl   String?
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+  @@map("notifications")
+}
