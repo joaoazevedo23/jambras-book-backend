@@ -7,6 +7,8 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateUserDto, ChangePasswordDto } from './dto';
 import * as bcrypt from 'bcryptjs';
+import * as fs from 'fs';
+import * as path from 'path';
 
 @Injectable()
 export class UsersService {
@@ -79,5 +81,36 @@ export class UsersService {
     });
 
     return { message: 'Senha alterada com sucesso' };
+  }
+
+  async updateAvatar(userId: string, file: Express.Multer.File) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) throw new NotFoundException('Usuário não encontrado');
+
+    if (user.avatarUrl) {
+      const oldFilePath = path.join(process.cwd(), user.avatarUrl);
+      if (fs.existsSync(oldFilePath)) {
+        fs.unlinkSync(oldFilePath);
+      }
+    }
+
+    const avatarUrl = `/uploads/avatars/${file.filename}`;
+
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { avatarUrl },
+      select: {
+        id: true,
+        email: true,
+        username: true,
+        name: true,
+        avatarUrl: true,
+        bio: true,
+        updatedAt: true,
+      },
+    });
   }
 }
