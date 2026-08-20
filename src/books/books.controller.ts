@@ -6,12 +6,20 @@ import {
   Post,
   Query,
   Patch,
+  UseInterceptors,
+  UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
 import {
   ApiBearerAuth,
   ApiOperation,
   ApiResponse,
   ApiTags,
+  ApiConsumes,
+  ApiBody,
 } from '@nestjs/swagger';
 import { BooksService } from './books.service';
 import { CreateBookDto, FilterBookDto, UpdateUserBookDto } from './dto';
@@ -72,5 +80,56 @@ export class BooksController {
     @Query('status') status?: UserBookStatus,
   ) {
     return this.booksService.getUserShelf(userId, status);
+  }
+
+  @Patch(':id/cover')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: './uploads/covers',
+        filename: (req, file, callback) => {
+          const uniqueSuffix =
+            Date.now() + '-' + Math.round(Math.random() * 1e9);
+          const ext = extname(file.originalname);
+          callback(null, `cover-${uniqueSuffix}${ext}`);
+        },
+      }),
+      fileFilter: (req, file, callback) => {
+        if (!file.mimetype.match(/\/(jpg|jpeg|png|webp)$/)) {
+          return callback(
+            new BadRequestException(
+              'Apenas imagens (jpg, jpeg, png, webp) são permitidas',
+            ),
+            false,
+          );
+        }
+        callback(null, true);
+      },
+      limits: { fileSize: 3 * 1024 * 1024 },
+    }),
+  )
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+          description:
+            'Arquivo de imagem para a capa do livro (JPG, JPEG, PNG ou WEBP, máximo 3MB)',
+        },
+      },
+    },
+  })
+  @ApiOperation({ summary: 'Atualizar a imagem de capa do livro' })
+  @ApiResponse({ status: 200, description: 'Capa atualizada com sucesso' })
+  @ApiResponse({ status: 404, description: 'Livro não encontrado' })
+  uploadCover(
+    @Param('id') bookId: string,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    if (!file) throw new BadRequestException('Nenhum arquivo enviado');
+    return this.booksService.updateCover(bookId, file);
   }
 }

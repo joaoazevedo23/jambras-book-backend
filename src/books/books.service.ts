@@ -6,6 +6,8 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateBookDto, FilterBookDto, UpdateUserBookDto } from './dto';
 import { UserBookStatus } from '@prisma/client';
+import * as fs from 'fs';
+import * as path from 'path';
 
 @Injectable()
 export class BooksService {
@@ -74,6 +76,7 @@ export class BooksService {
 
     return book;
   }
+
   async updateShelf(userId: string, bookId: string, dto: UpdateUserBookDto) {
     await this.findById(bookId);
 
@@ -118,6 +121,24 @@ export class BooksService {
         book: true,
       },
       orderBy: { updatedAt: 'desc' },
+    });
+  }
+
+  async updateCover(bookId: string, file: Express.Multer.File) {
+    const book = await this.findById(bookId);
+
+    if (book.coverUrl && book.coverUrl.startsWith('/uploads/')) {
+      const oldFilePath = path.join(process.cwd(), book.coverUrl);
+      if (fs.existsSync(oldFilePath)) {
+        fs.unlinkSync(oldFilePath);
+      }
+    }
+
+    const coverUrl = `/uploads/covers/${file.filename}`;
+
+    return this.prisma.book.update({
+      where: { id: bookId },
+      data: { coverUrl },
     });
   }
 }
