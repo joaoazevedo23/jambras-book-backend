@@ -4,7 +4,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateBookDto, FilterBookDto } from './dto';
+import { CreateBookDto, FilterBookDto, UpdateUserBookDto } from './dto';
+import { UserBookStatus } from '@prisma/client';
 
 @Injectable()
 export class BooksService {
@@ -72,5 +73,51 @@ export class BooksService {
     }
 
     return book;
+  }
+  async updateShelf(userId: string, bookId: string, dto: UpdateUserBookDto) {
+    await this.findById(bookId);
+
+    const now = new Date();
+    const finishedAt =
+      dto.status === UserBookStatus.COMPLETED ? now : undefined;
+    const startedAt = dto.status === UserBookStatus.READING ? now : undefined;
+
+    return this.prisma.userBook.upsert({
+      where: {
+        userId_bookId: { userId, bookId },
+      },
+      create: {
+        userId,
+        bookId,
+        status: dto.status ?? UserBookStatus.WANT_TO_READ,
+        currentPage: dto.currentPage ?? 0,
+        currentChapter: dto.currentChapter ?? 0,
+        rating: dto.rating,
+        review: dto.review,
+        startedAt,
+        finishedAt,
+      },
+      update: {
+        ...dto,
+        ...(startedAt && { startedAt }),
+        ...(finishedAt && { finishedAt }),
+      },
+      include: {
+        book: true,
+      },
+    });
+  }
+
+  async getUserShelf(userId: string, status?: UserBookStatus) {
+    return this.prisma.userBook.findMany({
+      where: {
+        userId,
+        ...(status && { status }),
+      },
+      include: {
+        book: true,
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
   }
 }

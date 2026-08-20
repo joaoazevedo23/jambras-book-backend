@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Query,
+  Patch,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -6,8 +14,10 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { BooksService } from './books.service';
-import { CreateBookDto, FilterBookDto } from './dto';
+import { CreateBookDto, FilterBookDto, UpdateUserBookDto } from './dto';
 import { Public } from '../common/decorators/public.decorator';
+import { GetUserId } from 'src/common/decorators/get-user-id.decorator';
+import { UserBookStatus } from '@prisma/client';
 
 @ApiTags('Books')
 @ApiBearerAuth('access-token')
@@ -38,5 +48,29 @@ export class BooksController {
   @ApiResponse({ status: 404, description: 'Livro não encontrado' })
   findById(@Param('id') id: string) {
     return this.booksService.findById(id);
+  }
+
+  @Patch(':id/shelf')
+  @ApiOperation({
+    summary: 'Adicionar ou atualizar livro na estante do usuário',
+  })
+  @ApiResponse({ status: 200, description: 'Estante atualizada com sucesso' })
+  @ApiResponse({ status: 404, description: 'Livro não encontrado' })
+  updateShelf(
+    @GetUserId() userId: string,
+    @Param('id') bookId: string,
+    @Body() dto: UpdateUserBookDto,
+  ) {
+    return this.booksService.updateShelf(userId, bookId, dto);
+  }
+
+  @Get('user/shelf')
+  @ApiOperation({ summary: 'Listar livros da estante do usuário logado' })
+  @ApiResponse({ status: 200, description: 'Lista de livros na estante' })
+  getUserShelf(
+    @GetUserId() userId: string,
+    @Query('status') status?: UserBookStatus,
+  ) {
+    return this.booksService.getUserShelf(userId, status);
   }
 }
