@@ -3,9 +3,7 @@ datasource db {
 }
 
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
-  moduleFormat = "cjs"
+  provider = "prisma-client-js"
 }
 
 // ------------------------------------------------------
@@ -102,6 +100,8 @@ model RefreshToken {
 
 model Book {
   id              String    @id @default(uuid())
+  isbn            String?   @unique
+  googleBooksId   String?   @unique
   title           String
   author          String
   description     String?   @db.Text
@@ -123,14 +123,18 @@ model Book {
 }
 
 model UserBook {
-  id         String         @id @default(uuid())
-  userId     String
-  bookId     String
-  status     UserBookStatus @default(WANT_TO_READ)
-  startedAt  DateTime?
-  finishedAt DateTime?
-  createdAt  DateTime       @default(now())
-  updatedAt  DateTime       @updatedAt
+  id                String         @id @default(uuid())
+  userId            String
+  bookId            String
+  status            UserBookStatus @default(WANT_TO_READ)
+  currentPage       Int            @default(0)
+  currentChapter    Int            @default(0)
+  rating            Int?
+  review            String?        @db.Text
+  startedAt         DateTime?
+  finishedAt        DateTime?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
 
   // Relacionamentos
   user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)

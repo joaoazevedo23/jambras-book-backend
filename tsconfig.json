@@ -10,6 +10,10 @@
     "sourceMap": true,
     "outDir": "./dist",
     "baseUrl": "./",
+    "paths": {
+      "@prisma-client": ["src/generated/prisma"],
+      "@prisma-client/*": ["src/generated/prisma/*"]
+    },
     "incremental": true,
     "skipLibCheck": true,
     "esModuleInterop": true
