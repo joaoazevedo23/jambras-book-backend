@@ -22,7 +22,12 @@ import {
   ApiBody,
 } from '@nestjs/swagger';
 import { BooksService } from './books.service';
-import { CreateBookDto, FilterBookDto, UpdateUserBookDto } from './dto';
+import {
+  CreateBookDto,
+  FilterBookDto,
+  UpdateUserBookDto,
+  CreateReadingSessionDto,
+} from './dto';
 import { Public } from '../common/decorators/public.decorator';
 import { GetUserId } from 'src/common/decorators/get-user-id.decorator';
 import { UserBookStatus } from '@prisma/client';
@@ -131,5 +136,29 @@ export class BooksController {
   ) {
     if (!file) throw new BadRequestException('Nenhum arquivo enviado');
     return this.booksService.updateCover(bookId, file);
+  }
+
+  @Post('user-books/:userBookId/sessions')
+  @ApiOperation({ summary: 'Registrar uma nova sessão de leitura' })
+  @ApiResponse({ status: 201, description: 'Sessão registrada com sucesso' })
+  @ApiResponse({ status: 404, description: 'Livro não encontrado na estante' })
+  createReadingSession(
+    @GetUserId() userId: string,
+    @Param('userBookId') userBookId: string,
+    @Body() dto: CreateReadingSessionDto,
+  ) {
+    return this.booksService.createReadingSession(userId, userBookId, dto);
+  }
+
+  @Get('user-books/:userBookId/sessions')
+  @ApiOperation({
+    summary: 'Listar histórico de sessões de leitura de um livro',
+  })
+  @ApiResponse({ status: 200, description: 'Histórico de sessões retornado' })
+  getReadingSessions(
+    @GetUserId() userId: string,
+    @Param('userBookId') userBookId: string,
+  ) {
+    return this.booksService.getReadingSessions(userId, userBookId);
   }
 }

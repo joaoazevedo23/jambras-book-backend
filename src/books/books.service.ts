@@ -4,8 +4,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateBookDto, FilterBookDto, UpdateUserBookDto } from './dto';
-import { UserBookStatus } from '@prisma/client';
+import {
+  CreateBookDto,
+  FilterBookDto,
+  UpdateUserBookDto,
+  CreateReadingSessionDto,
+} from './dto';
+import { UserBookStatus, TrackingMode } from '@prisma/client';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -139,6 +144,89 @@ export class BooksService {
     return this.prisma.book.update({
       where: { id: bookId },
       data: { coverUrl },
+    });
+  }
+
+  async createReadingSession(
+    userId: string,
+    userBookId: string,
+    dto: CreateReadingSessionDto,
+  ) {
+    const userBook = await this.prisma.userBook.findFirst({
+      where: { id: userBookId, userId },
+      include: { book: true },
+    });
+
+    if (!userBook) {
+      throw new NotFoundException('Livro não encontrado na sua estante');
+    }
+
+    const startPage = dto.startPage ?? userBook.currentPage;
+    const endPage = dto.endPage ?? startPage;
+    const pagesRead = Math.max(0, endPage - startPage);
+
+    const startChapter = dto.startChapter ?? userBook.currentChapter;
+    const endChapter = dto.endChapter ?? startChapter;
+    const chaptersRead = Math.max(0, endChapter - startChapter);
+
+    const session = await this.prisma.readingSession.create({
+      data: {
+        userBookId,
+        mode: dto.mode ?? TrackingMode.PAGES,
+        startPage,
+        endPage,
+        startChapter,
+        endChapter,
+        pagesRead,
+        chaptersRead,
+        rating: dto.rating,
+        notes: dto.notes,
+      },
+    });
+
+    let newStatus = userBook.status;
+    const now = new Date();
+
+    if (
+      userBook.status === UserBookStatus.WANT_TO_READ &&
+      (pagesRead > 0 || chaptersRead > 0)
+    ) {
+      newStatus = UserBookStatus.READING;
+    }
+
+    if (userBook.book.pageCount && endPage >= userBook.book.pageCount) {
+      newStatus = UserBookStatus.COMPLETED;
+    }
+
+    await this.prisma.userBook.update({
+      where: { id: userBookId },
+      data: {
+        currentPage: Math.max(userBook.currentPage, endPage),
+        currentChapter: Math.max(userBook.currentChapter, endChapter),
+        status: newStatus,
+        startedAt:
+          userBook.startedAt ??
+          (newStatus === UserBookStatus.READING ? now : undefined),
+        finishedAt:
+          newStatus === UserBookStatus.COMPLETED ? now : userBook.finishedAt,
+      },
+    });
+
+    return session;
+  }
+
+  async getReadingSessions(userId: string, userBookId: string) {
+    const userBook = await this.prisma.userBook.findFirst({
+      where: { id: userBookId, userId },
+    });
+
+    if (!userBook) {
+      throw new NotFoundException('Livro não encontrado na sua estante');
+    }
+
+    return this.prisma.readingSession.findMany({
+      where: { userBookId },
+      orderBy: { date: 'desc' },
     });
   }
 }
