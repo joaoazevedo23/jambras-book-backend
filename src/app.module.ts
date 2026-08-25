@@ -6,6 +6,7 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { AtGuard } from './common/guards/at.guard';
 import { BooksModule } from './books/books.module';
+import { FriendshipsModule } from './friendships/friendships.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { BooksModule } from './books/books.module';
     AuthModule,
     UsersModule,
     BooksModule,
+    FriendshipsModule,
   ],
   providers: [
     {
