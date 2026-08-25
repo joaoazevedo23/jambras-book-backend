@@ -10,13 +10,17 @@ import {
   UpdateUserBookDto,
   CreateReadingSessionDto,
 } from './dto';
-import { UserBookStatus, TrackingMode } from '@prisma/client';
+import { ActivityType, UserBookStatus, TrackingMode } from '@prisma/client';
+import { ActivitiesService } from 'src/activities/activities.service';
 import * as fs from 'fs';
 import * as path from 'path';
 
 @Injectable()
 export class BooksService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly activitiesService: ActivitiesService,
+  ) {}
 
   async create(dto: CreateBookDto) {
     if (dto.isbn) {
@@ -210,6 +214,12 @@ export class BooksService {
         finishedAt:
           newStatus === UserBookStatus.COMPLETED ? now : userBook.finishedAt,
       },
+    });
+
+    await this.activitiesService.logActivity({
+      userId,
+      type: ActivityType.READING_SESSION,
+      readingSessionId: session.id,
     });
 
     return session;
