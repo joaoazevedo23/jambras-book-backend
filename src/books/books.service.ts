@@ -10,8 +10,14 @@ import {
   UpdateUserBookDto,
   CreateReadingSessionDto,
 } from './dto';
-import { ActivityType, UserBookStatus, TrackingMode } from '@prisma/client';
+import {
+  ActivityType,
+  UserBookStatus,
+  TrackingMode,
+  NotificationType,
+} from '@prisma/client';
 import { ActivitiesService } from 'src/activities/activities.service';
+import { NotificationsService } from './../notifications/notifications.service';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -20,6 +26,7 @@ export class BooksService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly activitiesService: ActivitiesService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async create(dto: CreateBookDto) {
@@ -221,6 +228,19 @@ export class BooksService {
       type: ActivityType.READING_SESSION,
       readingSessionId: session.id,
     });
+
+    if (
+      userBook.status !== UserBookStatus.COMPLETED &&
+      newStatus === UserBookStatus.COMPLETED
+    ) {
+      await this.notificationsService.createNotification({
+        userId,
+        type: NotificationType.BOOK_COMPLETED,
+        title: 'Parabéns! Livro concluído! 🎉',
+        message: `Você finalizou a leitura de "${userBook.book.title}".`,
+        linkUrl: `/shelf`,
+      });
+    }
 
     return session;
   }

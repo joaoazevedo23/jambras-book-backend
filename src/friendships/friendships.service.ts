@@ -4,13 +4,17 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { FriendshipStatus } from '@prisma/client';
+import { FriendshipStatus, NotificationType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RespondFriendshipRequestDto } from './dto';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class FriendshipsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationsService: NotificationsService,
+  ) {}
 
   async sendRequest(requesterId: string, addresseeId: string) {
     if (requesterId === addresseeId) {
@@ -26,6 +30,10 @@ export class FriendshipsService {
     if (!addressee) {
       throw new NotFoundException('Usuário destinatário não encontrado');
     }
+
+    const requester = await this.prisma.user.findUnique({
+      where: { id: requesterId },
+    });
 
     const existing = await this.prisma.friendship.findFirst({
       where: {
@@ -45,7 +53,7 @@ export class FriendshipsService {
       }
     }
 
-    return this.prisma.friendship.create({
+    const friendship = await this.prisma.friendship.create({
       data: {
         requesterId,
         addresseeId,
@@ -57,6 +65,16 @@ export class FriendshipsService {
         },
       },
     });
+
+    await this.notificationsService.createNotification({
+      userId: addresseeId,
+      type: NotificationType.FRIEND_REQUEST,
+      title: 'Novo pedido de amizade',
+      message: `${requester?.name ?? 'Alguém'} enviou uma solicitação de amizade para você.`,
+      linkUrl: `/friends/requests`,
+    });
+
+    return friendship;
   }
 
   async respondRequest(
@@ -83,10 +101,25 @@ export class FriendshipsService {
       throw new BadRequestException('Status inválido para resposta');
     }
 
-    return this.prisma.friendship.update({
+    const updated = await this.prisma.friendship.update({
       where: { id: requestId },
       data: { status: dto.status },
+      include: {
+        addressee: { select: { name: true } },
+      },
     });
+
+    if (dto.status === FriendshipStatus.ACCEPTED) {
+      await this.notificationsService.createNotification({
+        userId: updated.requesterId,
+        type: NotificationType.FRIEND_ACCEPTED,
+        title: 'Pedido de amizade aceito!',
+        message: `${updated.addressee.name} aceitou sua solicitação de amizade.`,
+        linkUrl: `/friends`,
+      });
+    }
+
+    return updated;
   }
 
   async getFriends(userId: string) {

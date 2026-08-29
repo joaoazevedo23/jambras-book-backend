@@ -4,13 +4,17 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { CompetitionStatus } from '@prisma/client';
+import { CompetitionStatus, NotificationType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCompetitionDto } from './dto';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class CompetitionsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationsService: NotificationsService,
+  ) {}
 
   async create(creatorId: string, dto: CreateCompetitionDto) {
     const book = await this.prisma.book.findUnique({
@@ -82,7 +86,7 @@ export class CompetitionsService {
 
     const startingPage = userBook?.currentPage ?? 0;
 
-    return this.prisma.competitionParticipant.create({
+    const participant = await this.prisma.competitionParticipant.create({
       data: {
         competitionId,
         userId,
@@ -94,6 +98,18 @@ export class CompetitionsService {
         },
       },
     });
+
+    if (competition.creatorId !== userId) {
+      await this.notificationsService.createNotification({
+        userId: competition.creatorId,
+        type: NotificationType.COMPETITION_JOIN,
+        title: 'Novo participante! 🏆',
+        message: `${participant.user.name} entrou na competição "${competition.name}".`,
+        linkUrl: `/competitions/${competitionId}`,
+      });
+    }
+
+    return participant;
   }
 
   async getLeaderboard(competitionId: string) {

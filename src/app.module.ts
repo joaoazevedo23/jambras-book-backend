@@ -9,6 +9,7 @@ import { BooksModule } from './books/books.module';
 import { FriendshipsModule } from './friendships/friendships.module';
 import { ActivitiesModule } from './activities/activities.module';
 import { CompetitionsModule } from './competitions/competitions.module';
+import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { CompetitionsModule } from './competitions/competitions.module';
     FriendshipsModule,
     ActivitiesModule,
     CompetitionsModule,
+    NotificationsModule,
   ],
   providers: [
     {

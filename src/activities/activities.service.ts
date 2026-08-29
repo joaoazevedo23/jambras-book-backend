@@ -4,13 +4,21 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ActivityType, FriendshipStatus } from '@prisma/client';
+import {
+  ActivityType,
+  FriendshipStatus,
+  NotificationType,
+} from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCommentDto } from './dto';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class ActivitiesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationsService: NotificationsService,
+  ) {}
 
   async logActivity(data: {
     userId: string;
@@ -129,9 +137,24 @@ export class ActivitiesService {
       throw new ConflictException('Você já curtiu esta atividade');
     }
 
-    return this.prisma.like.create({
+    const like = await this.prisma.like.create({
       data: { activityId, userId },
     });
+
+    if (activity.userId !== userId) {
+      const liker = await this.prisma.user.findUnique({
+        where: { id: userId },
+      });
+      await this.notificationsService.createNotification({
+        userId: activity.userId,
+        type: NotificationType.ACTIVITY_LIKE,
+        title: 'Nova curtida',
+        message: `${liker?.name ?? 'Alguém'} curtiu a sua publicação.`,
+        linkUrl: `/feed`,
+      });
+    }
+
+    return like;
   }
 
   async unlikeActivity(userId: string, activityId: string) {
@@ -161,7 +184,7 @@ export class ActivitiesService {
       throw new NotFoundException('Atividade não encontrada');
     }
 
-    return this.prisma.comment.create({
+    const comment = await this.prisma.comment.create({
       data: {
         userId,
         activityId,
@@ -173,6 +196,18 @@ export class ActivitiesService {
         },
       },
     });
+
+    if (activity.userId !== userId) {
+      await this.notificationsService.createNotification({
+        userId: activity.userId,
+        type: NotificationType.ACTIVITY_COMMENT,
+        title: 'Novo comentário',
+        message: `${comment.user.name} comentou na sua publicação.`,
+        linkUrl: `/feed`,
+      });
+    }
+
+    return comment;
   }
 
   async removeComment(userId: string, commentId: string) {
