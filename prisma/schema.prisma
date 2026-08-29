@@ -48,10 +48,14 @@ enum ActivityType {
 enum NotificationType {
   FRIEND_REQUEST
   FRIEND_ACCEPTED
+  ACTIVITY_LIKE
+  ACTIVITY_COMMENT
   COMPETITION_INVITE
+  COMPETITION_JOIN
   COMPETITION_STARTED
   OVERTAKEN_IN_RANKING
   COMPETITION_FINISHED
+  BOOK_COMPLETED
 }
 
 // ------------------------------------------------------
