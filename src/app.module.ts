@@ -8,6 +8,7 @@ import { AtGuard } from './common/guards/at.guard';
 import { BooksModule } from './books/books.module';
 import { FriendshipsModule } from './friendships/friendships.module';
 import { ActivitiesModule } from './activities/activities.module';
+import { CompetitionsModule } from './competitions/competitions.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { ActivitiesModule } from './activities/activities.module';
     BooksModule,
     FriendshipsModule,
     ActivitiesModule,
+    CompetitionsModule,
   ],
   providers: [
     {
