@@ -1,8 +1,13 @@
 import {
   ConflictException,
+  HttpException,
+  HttpStatus,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
+import { isAxiosError } from 'axios';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   CreateBookDto,
@@ -18,8 +23,36 @@ import {
 } from '@prisma/client';
 import { ActivitiesService } from 'src/activities/activities.service';
 import { NotificationsService } from './../notifications/notifications.service';
+import { HttpService } from '@nestjs/axios';
+import { firstValueFrom } from 'rxjs';
 import * as fs from 'fs';
 import * as path from 'path';
+
+interface GoogleBooksIndustryIdentifier {
+  type: string;
+  identifier: string;
+}
+
+interface GoogleBooksVolumeInfo {
+  title?: string;
+  authors?: string[];
+  description?: string;
+  imageLinks?: {
+    thumbnail?: string;
+  };
+  pageCount?: number;
+  industryIdentifiers?: GoogleBooksIndustryIdentifier[];
+  categories?: string[];
+}
+
+interface GoogleBooksItem {
+  id: string;
+  volumeInfo?: GoogleBooksVolumeInfo;
+}
+
+interface GoogleBooksSearchResponse {
+  items?: GoogleBooksItem[];
+}
 
 @Injectable()
 export class BooksService {
@@ -27,7 +60,14 @@ export class BooksService {
     private readonly prisma: PrismaService,
     private readonly activitiesService: ActivitiesService,
     private readonly notificationsService: NotificationsService,
+    private readonly httpService: HttpService,
+    private readonly configService: ConfigService,
   ) {}
+
+  private getApiKeyParam(): string {
+    const apiKey = this.configService.get<string>('GOOGLE_BOOKS_API_KEY');
+    return apiKey ? `&key=${apiKey}` : '';
+  }
 
   async create(dto: CreateBookDto) {
     if (dto.isbn) {
@@ -91,6 +131,122 @@ export class BooksService {
     }
 
     return book;
+  }
+
+  async searchExternal(query: string) {
+    if (!query) {
+      return [];
+    }
+
+    try {
+      const apiKeyParam = this.getApiKeyParam();
+      const url = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(query)}&maxResults=10${apiKeyParam}`;
+      const response = await firstValueFrom(
+        this.httpService.get<GoogleBooksSearchResponse>(url),
+      );
+      const data = response.data;
+
+      if (!data.items) {
+        return [];
+      }
+
+      return data.items.map((item) => {
+        const info = item.volumeInfo || {};
+        const isbnObj = info.industryIdentifiers?.find(
+          (id) => id.type === 'ISBN_13' || id.type === 'ISBN_10',
+        );
+
+        return {
+          googleBooksId: item.id,
+          title: info.title || 'Título não informado',
+          author: info.authors ? info.authors.join(', ') : 'Autor desconhecido',
+          description: info.description || null,
+          coverUrl:
+            info.imageLinks?.thumbnail?.replace('http://', 'https://') || null,
+          pageCount: info.pageCount || null,
+          isbn: isbnObj?.identifier || null,
+          genres: info.categories || [],
+        };
+      });
+    } catch (error: any) {
+      if (isAxiosError(error) && error.response?.status === 429) {
+        throw new HttpException(
+          'Cota de requisições do Google Books excedida. Tente novamente mais tarde ou adicione uma GOOGLE_BOOKS_API_KEY no .env.',
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
+      throw new ServiceUnavailableException(
+        'Erro ao consultar a API do Google Books',
+      );
+    }
+  }
+
+  async importFromGoogle(googleBooksId: string) {
+    const existingBook = await this.prisma.book.findUnique({
+      where: { googleBooksId },
+    });
+
+    if (existingBook) {
+      return existingBook;
+    }
+
+    try {
+      const apiKeyParam = this.getApiKeyParam();
+      const url = `https://www.googleapis.com/books/v1/volumes/${googleBooksId}?${apiKeyParam.replace('&', '')}`;
+      const response = await firstValueFrom(
+        this.httpService.get<GoogleBooksItem>(url),
+      );
+      const data = response.data;
+
+      if (!data || !data.volumeInfo) {
+        throw new NotFoundException('Livro não encontrado no Google Books');
+      }
+
+      const info = data.volumeInfo;
+      const isbnObj = info.industryIdentifiers?.find(
+        (id) => id.type === 'ISBN_13' || id.type === 'ISBN_10',
+      );
+      const isbn = isbnObj?.identifier;
+
+      if (isbn) {
+        const existingByIsbn = await this.prisma.book.findUnique({
+          where: { isbn },
+        });
+        if (existingByIsbn) {
+          return this.prisma.book.update({
+            where: { id: existingByIsbn.id },
+            data: { googleBooksId },
+          });
+        }
+      }
+
+      return this.prisma.book.create({
+        data: {
+          googleBooksId,
+          isbn: isbn || null,
+          title: info.title || 'Título não informado',
+          author: info.authors ? info.authors.join(', ') : 'Autor desconhecido',
+          description: info.description || null,
+          coverUrl:
+            info.imageLinks?.thumbnail?.replace('http://', 'https://') || null,
+          pageCount: info.pageCount || null,
+          genres: info.categories || [],
+        },
+      });
+    } catch (error: any) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      if (isAxiosError(error) && error.response?.status === 429) {
+        throw new HttpException(
+          'Cota de requisições do Google Books excedida.',
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
+      throw new ServiceUnavailableException(
+        'Erro ao importar livro do Google Books',
+      );
+    }
   }
 
   async updateShelf(userId: string, bookId: string, dto: UpdateUserBookDto) {
