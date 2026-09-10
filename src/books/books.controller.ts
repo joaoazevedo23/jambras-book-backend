@@ -63,6 +63,22 @@ export class BooksController {
     return this.booksService.findById(id);
   }
 
+  @Get('search/external')
+  @ApiOperation({ summary: 'Buscar livros na API externa do Google Books' })
+  @ApiResponse({ status: 200, description: 'Resultados da busca externa' })
+  searchExternal(@Query('q') query: string) {
+    return this.booksService.searchExternal(query);
+  }
+
+  @Post('import/:googleBooksId')
+  @ApiOperation({
+    summary: 'Importar/Cadastrar um livro do Google Books no banco',
+  })
+  @ApiResponse({ status: 201, description: 'Livro importado com sucesso' })
+  importFromGoogle(@Param('googleBooksId') googleBooksId: string) {
+    return this.booksService.importFromGoogle(googleBooksId);
+  }
+
   @Patch(':id/shelf')
   @ApiOperation({
     summary: 'Adicionar ou atualizar livro na estante do usuário',
