@@ -8,6 +8,7 @@ import {
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  Req,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
@@ -104,5 +105,14 @@ export class UsersController {
     if (!file)
       throw new BadRequestException('Nenhum arquivo de imagem enviado');
     return this.usersService.updateAvatar(userId, file);
+  }
+
+  @Get('me/stats')
+  @ApiOperation({
+    summary: 'Obter estatísticas consolidadas do perfil do usuário',
+  })
+  @ApiResponse({ status: 200, description: 'Métricas recuperadas com sucesso' })
+  getUserStats(@Req() req: { user: { id: string } }) {
+    return this.usersService.getUserStats(req.user.id);
   }
 }
