@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { envValidationSchema } from './config/env.validation';
 import { APP_GUARD } from '@nestjs/core';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
@@ -13,7 +14,10 @@ import { NotificationsModule } from './notifications/notifications.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      validationSchema: envValidationSchema,
+    }),
     PrismaModule,
     AuthModule,
     UsersModule,
