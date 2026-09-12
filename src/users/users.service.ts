@@ -5,6 +5,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { UserBookStatus } from '@prisma/client';
 import { UpdateUserDto, ChangePasswordDto } from './dto';
 import * as bcrypt from 'bcryptjs';
 import * as fs from 'fs';
@@ -112,5 +113,88 @@ export class UsersService {
         updatedAt: true,
       },
     });
+  }
+
+  async getUserStats(userId: string) {
+    const totalPagesResult = await this.prisma.readingSession.aggregate({
+      where: { userBook: { userId } },
+      _sum: { pagesRead: true },
+    });
+    const totalPagesRead = totalPagesResult._sum.pagesRead ?? 0;
+
+    const completedBooksCount = await this.prisma.userBook.count({
+      where: { userId, status: UserBookStatus.COMPLETED },
+    });
+
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+
+    const completedThisMonth = await this.prisma.userBook.count({
+      where: {
+        userId,
+        status: UserBookStatus.COMPLETED,
+        finishedAt: { gte: startOfMonth },
+      },
+    });
+
+    const sessions = await this.prisma.readingSession.findMany({
+      where: { userBook: { userId } },
+      select: { date: true },
+      orderBy: { date: 'desc' },
+    });
+
+    const uniqueDates = Array.from(
+      new Set(sessions.map((s) => s.date.toISOString().split('T')[0])),
+    );
+
+    let currentStreak = 0;
+    const today = new Date().toISOString().split('T')[0];
+    const yesterdayDate = new Date();
+    yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+    const yesterday = yesterdayDate.toISOString().split('T')[0];
+
+    let checkDate = uniqueDates.includes(today)
+      ? new Date()
+      : uniqueDates.includes(yesterday)
+        ? yesterdayDate
+        : null;
+
+    if (checkDate) {
+      while (true) {
+        const dateStr = checkDate.toISOString().split('T')[0];
+        if (uniqueDates.includes(dateStr)) {
+          currentStreak++;
+          checkDate.setDate(checkDate.getDate() - 1);
+        } else {
+          break;
+        }
+      }
+    }
+
+    const userBooks = await this.prisma.userBook.findMany({
+      where: { userId },
+      include: { book: { select: { genres: true } } },
+    });
+
+    const genreCount: Record<string, number> = {};
+    userBooks.forEach((ub) => {
+      ub.book.genres.forEach((genre) => {
+        genreCount[genre] = (genreCount[genre] || 0) + 1;
+      });
+    });
+
+    const favoriteGenres = Object.entries(genreCount)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 3)
+      .map(([genre]) => genre);
+
+    return {
+      totalPagesRead,
+      completedBooksCount,
+      completedThisMonth,
+      currentStreak,
+      favoriteGenres,
+    };
   }
 }
