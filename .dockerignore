@@ -1,0 +1,9 @@
+.agents
+.claude
+.windsurf
+node_modules
+dist
+.env
+.git
+npm-debug.log
+skills-lock.json
