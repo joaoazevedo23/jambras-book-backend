@@ -7,6 +7,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { RegisterDto, LoginDto } from './dto';
 import * as bcrypt from 'bcryptjs';
+import * as crypto from 'crypto';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 
@@ -158,6 +159,7 @@ export class AuthService {
       this.jwtService.signAsync(jwtPayload, {
         secret: refreshSecret,
         expiresIn: refreshExpiresIn as never,
+        jwtid: crypto.randomUUID(),
       }),
     ]);
 
