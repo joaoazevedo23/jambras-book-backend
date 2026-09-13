@@ -29,7 +29,7 @@ import {
   CreateReadingSessionDto,
 } from './dto';
 import { Public } from '../common/decorators/public.decorator';
-import { GetUserId } from 'src/common/decorators/get-user-id.decorator';
+import { GetUserId } from '../common/decorators/get-user-id.decorator';
 import { UserBookStatus } from '@prisma/client';
 
 @ApiTags('Books')

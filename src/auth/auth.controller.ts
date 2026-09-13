@@ -17,7 +17,7 @@ import { RegisterDto, LoginDto } from './dto';
 import { Public } from '../common/decorators/public.decorator';
 import { GetUserId } from '../common/decorators/get-user-id.decorator';
 import { GetUser } from '../common/decorators/get-user.decorator';
-import { RtGuard } from 'src/common/guards/rt.guard';
+import { RtGuard } from '../common/guards/rt.guard';
 
 @ApiTags('Auth')
 @Controller('auth')

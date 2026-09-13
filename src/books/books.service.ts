@@ -21,7 +21,7 @@ import {
   TrackingMode,
   NotificationType,
 } from '@prisma/client';
-import { ActivitiesService } from 'src/activities/activities.service';
+import { ActivitiesService } from '../activities/activities.service';
 import { NotificationsService } from './../notifications/notifications.service';
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
