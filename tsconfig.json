@@ -16,6 +16,11 @@
     },
     "incremental": true,
     "skipLibCheck": true,
-    "esModuleInterop": true
+    "strictNullChecks": false,
+    "noImplicitAny": false,
+    "strictBindCallApply": false,
+    "forceConsistentCasingInFileNames": false,
+    "noFallthroughCasesInSwitch": false,
+    "types": ["jest", "node"]
   }
 }
