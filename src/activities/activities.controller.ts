@@ -75,4 +75,11 @@ export class ActivitiesController {
   ) {
     return this.activitiesService.removeComment(userId, commentId);
   }
+
+  @Delete(':id')
+  @ApiOperation({ summary: 'Remover uma atividade (post)' })
+  @ApiResponse({ status: 200, description: 'Atividade removida' })
+  removeActivity(@GetUserId() userId: string, @Param('id') activityId: string) {
+    return this.activitiesService.removeActivity(userId, activityId);
+  }
 }
