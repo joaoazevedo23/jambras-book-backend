@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import {
   BadRequestException,
   ConflictException,
@@ -230,5 +231,27 @@ export class ActivitiesService {
     });
 
     return { message: 'Comentário removido' };
+  }
+
+  async removeActivity(userId: string, activityId: string) {
+    const activity = await this.prisma.activity.findUnique({
+      where: { id: activityId },
+    });
+
+    if (!activity) {
+      throw new NotFoundException('Atividade não encontrada');
+    }
+
+    if (activity.userId !== userId) {
+      throw new BadRequestException(
+        'Apenas pode apagar as suas próprias atividades',
+      );
+    }
+
+    await this.prisma.activity.delete({
+      where: { id: activityId },
+    });
+
+    return { message: 'Atividade removida' };
   }
 }
