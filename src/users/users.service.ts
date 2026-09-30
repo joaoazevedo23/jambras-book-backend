@@ -116,11 +116,12 @@ export class UsersService {
   }
 
   async getUserStats(userId: string) {
-    const totalPagesResult = await this.prisma.readingSession.aggregate({
+    const statsResult = await this.prisma.readingSession.aggregate({
       where: { userBook: { userId } },
-      _sum: { pagesRead: true },
+      _sum: { pagesRead: true, chaptersRead: true },
     });
-    const totalPagesRead = totalPagesResult._sum.pagesRead ?? 0;
+    const totalPagesRead = statsResult._sum.pagesRead ?? 0;
+    const totalChaptersRead = statsResult._sum.chaptersRead ?? 0;
 
     const completedBooksCount = await this.prisma.userBook.count({
       where: { userId, status: UserBookStatus.COMPLETED },
@@ -191,6 +192,7 @@ export class UsersService {
 
     return {
       totalPagesRead,
+      totalChaptersRead,
       completedBooksCount,
       completedThisMonth,
       currentStreak,
