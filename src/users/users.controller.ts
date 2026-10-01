@@ -8,6 +8,7 @@ import {
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  Param,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
@@ -113,5 +114,20 @@ export class UsersController {
   @ApiResponse({ status: 200, description: 'Métricas recuperadas com sucesso' })
   getUserStats(@GetUserId() userId: string) {
     return this.usersService.getUserStats(userId);
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Obter dados de um usuário específico pelo ID' })
+  @ApiResponse({ status: 200, description: 'Dados do perfil do usuário' })
+  @ApiResponse({ status: 404, description: 'Usuário não encontrado' })
+  getUserById(@Param('id') id: string) {
+    return this.usersService.findById(id);
+  }
+
+  @Get(':id/stats')
+  @ApiOperation({ summary: 'Obter estatísticas de um usuário específico' })
+  @ApiResponse({ status: 200, description: 'Métricas recuperadas com sucesso' })
+  getUserStatsById(@Param('id') id: string) {
+    return this.usersService.getUserStats(id);
   }
 }
