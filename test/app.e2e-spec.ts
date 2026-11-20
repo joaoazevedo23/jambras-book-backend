@@ -11,6 +11,7 @@ describe('Bookr Core Flow (e2e)', () => {
 
   let accessToken: string;
   let userId: string;
+  let otherUserId: string;
   let createdBookId: string;
   let userBookId: string;
 
@@ -26,7 +27,9 @@ describe('Bookr Core Flow (e2e)', () => {
     prisma = app.get<PrismaService>(PrismaService);
 
     await prisma.user.deleteMany({
-      where: { email: 'e2e-flow@teste.com' },
+      where: {
+        email: { in: ['e2e-flow@teste.com', 'e2e-public@teste.com'] },
+      },
     });
     await prisma.book.deleteMany({
       where: { isbn: '9780132350884' },
@@ -35,7 +38,9 @@ describe('Bookr Core Flow (e2e)', () => {
 
   afterAll(async () => {
     await prisma.user.deleteMany({
-      where: { email: 'e2e-flow@teste.com' },
+      where: {
+        email: { in: ['e2e-flow@teste.com', 'e2e-public@teste.com'] },
+      },
     });
     await prisma.book.deleteMany({
       where: { isbn: '9780132350884' },
@@ -76,6 +81,56 @@ describe('Bookr Core Flow (e2e)', () => {
       const body = response.body as { email: string; username: string };
       expect(body.email).toBe('e2e-flow@teste.com');
       expect(body.username).toBe('e2eflow');
+    });
+
+    it('POST /auth/register - deve registrar segundo usuário para testes de perfil público', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/auth/register')
+        .send({
+          email: 'e2e-public@teste.com',
+          username: 'e2epublic',
+          name: 'Usuario E2E Public',
+          password: 'password123',
+        })
+        .expect(201);
+
+      const body = response.body as { user: { id: string } };
+      otherUserId = body.user.id;
+      expect(otherUserId).toBeDefined();
+    });
+
+    it('GET /users/:id - não deve expor email nem campos privados de outro usuário', async () => {
+      const response = await request(app.getHttpServer())
+        .get(`/users/${otherUserId}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200);
+
+      const body = response.body as Record<string, unknown>;
+
+      expect(body.id).toBe(otherUserId);
+      expect(body.username).toBe('e2epublic');
+      expect(body.name).toBe('Usuario E2E Public');
+      expect(Object.keys(body).sort()).toEqual(
+        [
+          'id',
+          'username',
+          'name',
+          'avatarUrl',
+          'bio',
+          'createdAt',
+          'updatedAt',
+        ].sort(),
+      );
+      expect(body).not.toHaveProperty('email');
+      expect(body).not.toHaveProperty('passwordHash');
+      expect(body).not.toHaveProperty('refreshTokens');
+    });
+
+    it('GET /users/:id - deve retornar 404 para usuário inexistente', async () => {
+      await request(app.getHttpServer())
+        .get('/users/00000000-0000-0000-0000-000000000000')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(404);
     });
   });
 

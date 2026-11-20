@@ -5,15 +5,35 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { UserBookStatus } from '@prisma/client';
+import { Prisma, UserBookStatus } from '@prisma/client';
 import { UpdateUserDto, ChangePasswordDto } from './dto';
 import * as bcrypt from 'bcryptjs';
 import * as fs from 'fs';
 import * as path from 'path';
 
+const publicUserSelect = {
+  id: true,
+  username: true,
+  name: true,
+  avatarUrl: true,
+  bio: true,
+  createdAt: true,
+  updatedAt: true,
+} satisfies Prisma.UserSelect;
+
 @Injectable()
 export class UsersService {
   constructor(private prisma: PrismaService) {}
+
+  async findPublicById(id: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      select: publicUserSelect,
+    });
+
+    if (!user) throw new NotFoundException('Usuário não encontrado');
+    return user;
+  }
 
   async findById(id: string) {
     const user = await this.prisma.user.findUnique({
@@ -155,7 +175,7 @@ export class UsersService {
     yesterdayDate.setDate(yesterdayDate.getDate() - 1);
     const yesterday = yesterdayDate.toISOString().split('T')[0];
 
-    let checkDate = uniqueDates.includes(today)
+    const checkDate = uniqueDates.includes(today)
       ? new Date()
       : uniqueDates.includes(yesterday)
         ? yesterdayDate
