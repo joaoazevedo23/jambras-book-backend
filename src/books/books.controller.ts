@@ -1,25 +1,18 @@
 import {
   Body,
   Controller,
+  ForbiddenException,
   Get,
   Param,
   Post,
   Query,
   Patch,
-  UseInterceptors,
-  UploadedFile,
-  BadRequestException,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
-import { extname } from 'path';
 import {
   ApiBearerAuth,
   ApiOperation,
   ApiResponse,
   ApiTags,
-  ApiConsumes,
-  ApiBody,
 } from '@nestjs/swagger';
 import { BooksService } from './books.service';
 import {
@@ -103,55 +96,26 @@ export class BooksController {
     return this.booksService.getUserShelf(userId, status);
   }
 
+  // Temporariamente desabilitado: coverUrl é um atributo global do catálogo
+  // e ainda não existe modelo de autorização/moderação — qualquer usuário
+  // autenticado poderia sobrescrever a capa de qualquer livro. Sem o
+  // FileInterceptor, o Multer nunca grava o arquivo enviado. Reabilitar
+  // somente junto com uma política de autorização (ver auditoria de
+  // autorização do endpoint).
   @Patch(':id/cover')
-  @UseInterceptors(
-    FileInterceptor('file', {
-      storage: diskStorage({
-        destination: './uploads/covers',
-        filename: (req, file, callback) => {
-          const uniqueSuffix =
-            Date.now() + '-' + Math.round(Math.random() * 1e9);
-          const ext = extname(file.originalname);
-          callback(null, `cover-${uniqueSuffix}${ext}`);
-        },
-      }),
-      fileFilter: (req, file, callback) => {
-        if (!file.mimetype.match(/\/(jpg|jpeg|png|webp)$/)) {
-          return callback(
-            new BadRequestException(
-              'Apenas imagens (jpg, jpeg, png, webp) são permitidas',
-            ),
-            false,
-          );
-        }
-        callback(null, true);
-      },
-      limits: { fileSize: 3 * 1024 * 1024 },
-    }),
-  )
-  @ApiConsumes('multipart/form-data')
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        file: {
-          type: 'string',
-          format: 'binary',
-          description:
-            'Arquivo de imagem para a capa do livro (JPG, JPEG, PNG ou WEBP, máximo 3MB)',
-        },
-      },
-    },
+  @ApiOperation({
+    summary:
+      'Atualizar a imagem de capa do livro (temporariamente desabilitado)',
   })
-  @ApiOperation({ summary: 'Atualizar a imagem de capa do livro' })
-  @ApiResponse({ status: 200, description: 'Capa atualizada com sucesso' })
-  @ApiResponse({ status: 404, description: 'Livro não encontrado' })
-  uploadCover(
-    @Param('id') bookId: string,
-    @UploadedFile() file: Express.Multer.File,
-  ) {
-    if (!file) throw new BadRequestException('Nenhum arquivo enviado');
-    return this.booksService.updateCover(bookId, file);
+  @ApiResponse({
+    status: 403,
+    description:
+      'Upload de capas desabilitado até existir modelo de autorização e moderação',
+  })
+  uploadCover(): never {
+    throw new ForbiddenException(
+      'Upload de capas está temporariamente desabilitado',
+    );
   }
 
   @Post('user-books/:userBookId/sessions')

@@ -2,6 +2,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
+import * as fs from 'fs';
+import * as path from 'path';
 import { AppModule } from './../src/app.module';
 import { PrismaService } from './../src/prisma/prisma.service';
 
@@ -181,6 +183,80 @@ describe('Bookr Core Flow (e2e)', () => {
 
       const body = response.body as { pagesRead: number };
       expect(body.pagesRead).toBe(50);
+    });
+  });
+
+  describe('Book Cover Upload (temporariamente desabilitado)', () => {
+    const coversDir = path.join(process.cwd(), 'uploads', 'covers');
+    const pngBuffer = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+    let coverBookId: string;
+    let sentinelPath: string;
+
+    beforeAll(async () => {
+      fs.mkdirSync(coversDir, { recursive: true });
+      sentinelPath = path.join(coversDir, 'cover-e2e-sentinel.png');
+      fs.writeFileSync(sentinelPath, pngBuffer);
+
+      const book = await prisma.book.create({
+        data: {
+          title: 'Livro Com Capa E2E',
+          author: 'Autor E2E',
+          coverUrl: '/uploads/covers/cover-e2e-sentinel.png',
+        },
+      });
+      coverBookId = book.id;
+    });
+
+    afterAll(async () => {
+      await prisma.book.deleteMany({ where: { id: coverBookId } });
+      if (fs.existsSync(sentinelPath)) fs.unlinkSync(sentinelPath);
+    });
+
+    it('PATCH /books/:id/cover - deve retornar 401 sem autenticação', async () => {
+      await request(app.getHttpServer())
+        .patch(`/books/${coverBookId}/cover`)
+        .attach('file', pngBuffer, 'nova-capa.png')
+        .expect(401);
+    });
+
+    it('PATCH /books/:id/cover - deve retornar 403 para usuário autenticado', async () => {
+      await request(app.getHttpServer())
+        .patch(`/books/${coverBookId}/cover`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .attach('file', pngBuffer, 'nova-capa.png')
+        .expect(403);
+    });
+
+    it('PATCH /books/:id/cover - não deve alterar coverUrl, gravar arquivo nem apagar capa existente', async () => {
+      const filesBefore = fs.readdirSync(coversDir).sort();
+
+      await request(app.getHttpServer())
+        .patch(`/books/${coverBookId}/cover`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .attach('file', pngBuffer, 'nova-capa.png')
+        .expect(403);
+
+      expect(fs.readdirSync(coversDir).sort()).toEqual(filesBefore);
+      expect(fs.existsSync(sentinelPath)).toBe(true);
+
+      const book = await prisma.book.findUnique({
+        where: { id: coverBookId },
+      });
+      expect(book?.coverUrl).toBe('/uploads/covers/cover-e2e-sentinel.png');
+    });
+
+    it('PATCH /users/me/avatar - upload de avatar permanece funcionando', async () => {
+      const response = await request(app.getHttpServer())
+        .patch('/users/me/avatar')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .attach('file', pngBuffer, 'avatar.png')
+        .expect(200);
+
+      const body = response.body as { avatarUrl?: string };
+      if (body.avatarUrl?.startsWith('/uploads/')) {
+        const uploaded = path.join(process.cwd(), body.avatarUrl);
+        if (fs.existsSync(uploaded)) fs.unlinkSync(uploaded);
+      }
     });
   });
 
