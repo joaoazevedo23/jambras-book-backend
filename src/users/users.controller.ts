@@ -121,7 +121,7 @@ export class UsersController {
   @ApiResponse({ status: 200, description: 'Dados do perfil do usuário' })
   @ApiResponse({ status: 404, description: 'Usuário não encontrado' })
   getUserById(@Param('id') id: string) {
-    return this.usersService.findById(id);
+    return this.usersService.findPublicById(id);
   }
 
   @Get(':id/stats')

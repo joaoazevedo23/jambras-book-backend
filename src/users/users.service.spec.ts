@@ -64,10 +64,73 @@ describe('UsersService', () => {
       expect(result).toEqual(mockUser);
     });
 
+    it('deve projetar o email para uso no perfil privado', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue({ id: 'user-1' });
+
+      await service.findById('user-1');
+
+      const call = (
+        mockPrismaService.user.findUnique.mock.calls as unknown[][]
+      )[0][0] as { select: Record<string, boolean> };
+      expect(call.select.email).toBe(true);
+    });
+
     it('deve lançar NotFoundException se o usuário não for encontrado', async () => {
       mockPrismaService.user.findUnique.mockResolvedValue(null);
 
       await expect(service.findById('user-invalido')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe('findPublicById', () => {
+    it('deve retornar apenas campos públicos permitidos', async () => {
+      const mockPublicUser = {
+        id: 'user-2',
+        username: 'user2',
+        name: 'User Two',
+        avatarUrl: null,
+        bio: null,
+        createdAt: new Date('2026-01-01'),
+        updatedAt: new Date('2026-01-01'),
+      };
+      mockPrismaService.user.findUnique.mockResolvedValue(mockPublicUser);
+
+      const result = await service.findPublicById('user-2');
+
+      expect(result).toEqual(mockPublicUser);
+      expect(result).not.toHaveProperty('email');
+      expect(result).not.toHaveProperty('passwordHash');
+      expect(result).not.toHaveProperty('refreshTokens');
+    });
+
+    it('deve consultar o banco com projeção que nunca inclui campos privados', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue({ id: 'user-2' });
+
+      await service.findPublicById('user-2');
+
+      const call = (
+        mockPrismaService.user.findUnique.mock.calls as unknown[][]
+      )[0][0] as { select: Record<string, boolean> };
+      expect(call.select).toEqual({
+        id: true,
+        username: true,
+        name: true,
+        avatarUrl: true,
+        bio: true,
+        createdAt: true,
+        updatedAt: true,
+      });
+      expect(call.select).not.toHaveProperty('email');
+      expect(call.select).not.toHaveProperty('passwordHash');
+      expect(call.select).not.toHaveProperty('refreshTokens');
+    });
+
+    it('deve lançar NotFoundException se o usuário não for encontrado', async () => {
+      mockPrismaService.user.findUnique.mockResolvedValue(null);
+
+      await expect(service.findPublicById('user-invalido')).rejects.toThrow(
         NotFoundException,
       );
     });
