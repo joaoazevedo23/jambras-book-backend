@@ -3,6 +3,7 @@ import {
   ConflictException,
   UnauthorizedException,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { RegisterDto, LoginDto } from './dto';
@@ -95,6 +96,10 @@ export class AuthService {
   }
 
   async logout(userId: string, refreshToken: string) {
+    if (!refreshToken || typeof refreshToken !== 'string') {
+      throw new BadRequestException('Refresh token é obrigatório');
+    }
+
     await this.prisma.refreshToken.updateMany({
       where: {
         userId,
