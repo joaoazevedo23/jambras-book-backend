@@ -13,7 +13,7 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
-import { RegisterDto, LoginDto } from './dto';
+import { RegisterDto, LoginDto, RefreshTokenDto } from './dto';
 import { Public } from '../common/decorators/public.decorator';
 import { GetUserId } from '../common/decorators/get-user-id.decorator';
 import { GetUser } from '../common/decorators/get-user.decorator';
@@ -49,11 +49,12 @@ export class AuthController {
   @ApiBearerAuth('access-token')
   @ApiOperation({ summary: 'Realizar logout do usuário' })
   @ApiResponse({ status: 200, description: 'Logout efetuado com sucesso' })
-  logout(
-    @GetUserId() userId: string,
-    @GetUser('refreshToken') refreshToken: string,
-  ) {
-    return this.authService.logout(userId, refreshToken);
+  @ApiResponse({
+    status: 400,
+    description: 'Refresh token ausente ou inválido',
+  })
+  logout(@GetUserId() userId: string, @Body() dto: RefreshTokenDto) {
+    return this.authService.logout(userId, dto.refreshToken);
   }
 
   @Public()

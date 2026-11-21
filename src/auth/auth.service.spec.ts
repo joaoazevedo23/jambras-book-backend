@@ -3,7 +3,11 @@ import { AuthService } from './auth.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { UnauthorizedException, ConflictException } from '@nestjs/common';
+import {
+  UnauthorizedException,
+  ConflictException,
+  BadRequestException,
+} from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 
 describe('AuthService', () => {
@@ -125,6 +129,81 @@ describe('AuthService', () => {
       await expect(
         service.login({ login: 'teste@teste.com', password: 'senhaErrada' }),
       ).rejects.toThrow(UnauthorizedException);
+    });
+  });
+
+  describe('logout', () => {
+    it('deve revogar apenas o refresh token fornecido do usuário autenticado', async () => {
+      mockPrismaService.refreshToken.updateMany.mockResolvedValue({
+        count: 1,
+      });
+
+      const result = await service.logout('user-uuid', 'rt-session-a');
+
+      expect(mockPrismaService.refreshToken.updateMany).toHaveBeenCalledWith({
+        where: {
+          userId: 'user-uuid',
+          token: 'rt-session-a',
+          revoked: false,
+        },
+        data: { revoked: true },
+      });
+      expect(result).toEqual({ success: true });
+    });
+
+    it.each([
+      ['undefined', undefined],
+      ['null', null],
+      ['string vazia', ''],
+    ])(
+      'deve rejeitar token %s sem tocar no banco (sem revogação sem escopo)',
+      async (_label, token) => {
+        await expect(service.logout('user-uuid', token)).rejects.toThrow(
+          BadRequestException,
+        );
+        expect(
+          mockPrismaService.refreshToken.updateMany,
+        ).not.toHaveBeenCalled();
+      },
+    );
+
+    it('deve ser idempotente para token desconhecido ou já revogado sem afetar outras sessões', async () => {
+      mockPrismaService.refreshToken.updateMany.mockResolvedValue({
+        count: 0,
+      });
+
+      const result = await service.logout('user-uuid', 'rt-desconhecido');
+
+      expect(result).toEqual({ success: true });
+      expect(mockPrismaService.refreshToken.updateMany).toHaveBeenCalledWith({
+        where: {
+          userId: 'user-uuid',
+          token: 'rt-desconhecido',
+          revoked: false,
+        },
+        data: { revoked: true },
+      });
+      expect(mockPrismaService.refreshToken.findUnique).not.toHaveBeenCalled();
+      expect(mockPrismaService.refreshToken.update).not.toHaveBeenCalled();
+      expect(mockPrismaService.refreshToken.create).not.toHaveBeenCalled();
+    });
+
+    it('não deve revogar sessões de outro usuário: o filtro sempre carrega o userId autenticado', async () => {
+      mockPrismaService.refreshToken.updateMany.mockResolvedValue({
+        count: 0,
+      });
+
+      await service.logout('user-a', 'rt-de-outro-usuario');
+
+      expect(mockPrismaService.refreshToken.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            userId: 'user-a',
+            token: 'rt-de-outro-usuario',
+            revoked: false,
+          },
+        }),
+      );
     });
   });
 });
